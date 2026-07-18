@@ -1,0 +1,11 @@
+# Astro Runtime includes the following pre-installed providers packages: https://www.astronomer.io/docs/astro/runtime-image-architecture#provider-packages
+requests
+beautifulsoup4
+pandas
+confluent-kafka
+pyspark 
+python-chess
+pyarrow
+chess
+dotenv 
+psycopg2-binary
