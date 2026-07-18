@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LilChess Data Pipeline — Lambda Architecture</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background: #0f172a; color: #e2e8f0; }
+
+        .node-card {
+            background: #1e293b;
+            border-radius: 0.75rem;
+            padding: 0.875rem 1rem;
+            cursor: pointer;
+            transition: all 0.25s cubic-bezier(0.4,0,0.2,1);
+            border: 1.5px solid #334155;
+            display: flex; align-items: center; gap: 0.75rem;
+        }
+        .node-card:hover { transform: translateY(-2px); border-color: #60a5fa; box-shadow: 0 0 0 3px rgba(96,165,250,0.15); }
+        .node-card.active { border-color: #60a5fa; box-shadow: 0 0 0 4px rgba(96,165,250,0.2); }
+
+        .icon-box { width:2.5rem; height:2.5rem; border-radius:0.5rem; display:flex; align-items:center; justify-content:center; font-size:1.25rem; flex-shrink:0; }
+
+        /* Source zone */
+        .zone-source { background: linear-gradient(135deg,#1a1a2e,#16213e); border:1.5px dashed #4f46e5; border-radius:1rem; padding:1.25rem; }
+        .node-source { border-color:#312e81; }
+        .node-source:hover,.node-source.active { border-color:#818cf8; box-shadow:0 0 0 3px rgba(129,140,248,0.2); }
+        .node-source .icon-box { background:#1e1b4b; color:#a5b4fc; }
+        .badge-source { background:#4f46e5; }
+
+        /* Kafka */
+        .node-kafka-card { background:linear-gradient(135deg,#1e293b,#0f2027); border:1.5px solid #f59e0b; }
+        .node-kafka-card:hover,.node-kafka-card.active { border-color:#fbbf24; box-shadow:0 0 0 4px rgba(251,191,36,0.2); }
+        .node-kafka-card .icon-box { background:#292524; color:#fbbf24; }
+
+        /* Hot Path */
+        .zone-hot { background:linear-gradient(135deg,#1a0a0a,#200f0f); border:1.5px dashed #f43f5e; border-radius:1rem; padding:1.25rem; }
+        .node-hot { border-color:#3b1219; }
+        .node-hot:hover,.node-hot.active { border-color:#fb7185; box-shadow:0 0 0 3px rgba(251,113,133,0.2); }
+        .node-hot .icon-box { background:#1f1214; color:#fb7185; }
+        .badge-hot { background:#e11d48; }
+
+        /* Cold Path */
+        .zone-cold { background:linear-gradient(135deg,#051917,#061f1a); border:1.5px dashed #2dd4bf; border-radius:1rem; padding:1.25rem; }
+        .node-cold { border-color:#134e4a; }
+        .node-cold:hover,.node-cold.active { border-color:#5eead4; box-shadow:0 0 0 3px rgba(94,234,212,0.2); }
+        .node-cold .icon-box { background:#042f2e; color:#5eead4; }
+        .badge-cold { background:#0d9488; }
+
+        /* Postgres */
+        .node-pg { border-color:#1e3a5f; }
+        .node-pg:hover,.node-pg.active { border-color:#38bdf8; box-shadow:0 0 0 3px rgba(56,189,248,0.2); }
+        .node-pg .icon-box { background:#0c2a3e; color:#38bdf8; }
+
+        /* Arrow */
+        .arrow { display:flex; align-items:center; justify-content:center; color:#475569; font-size:1.25rem; margin:0.35rem 0; user-select:none; }
+        .arrow-h { color:#475569; margin:0 0.25rem; }
+
+        /* topic pill */
+        .topic-pill { display:inline-flex; align-items:center; gap:0.25rem; background:#1e293b; border:1px solid #334155; border-radius:9999px; padding:0.15rem 0.6rem; font-size:0.65rem; font-family:monospace; color:#94a3b8; }
+
+        /* Panel */
+        #info-panel { background:#1e293b; border-left:1px solid #334155; }
+        pre.code-block { background:#0f172a; color:#38bdf8; padding:0.875rem; border-radius:0.5rem; font-family:'Courier New',monospace; font-size:0.75rem; overflow-x:auto; border:1px solid #1e3a5f; }
+
+        /* todo badge */
+        .todo-badge { background:#44403c; color:#a8a29e; font-size:0.6rem; font-weight:700; padding:0.1rem 0.4rem; border-radius:4px; letter-spacing:.05em; }
+
+        @keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+        .fade-up { animation:fadeUp 0.25s ease-out; }
+    </style>
+</head>
+<body class="flex flex-col md:flex-row h-screen overflow-hidden">
+
+<!-- LEFT: Diagram -->
+<main class="w-full md:w-[62%] h-full overflow-y-auto p-5 md:p-8">
+    <div class="text-center mb-6">
+        <h1 class="text-2xl font-extrabold tracking-tight text-white">🏰 LilChess Data Pipeline</h1>
+        <p class="text-slate-400 text-sm mt-1">Lambda Architecture — Real-time + Batch</p>
+    </div>
+
+    <div class="max-w-2xl mx-auto flex flex-col gap-3">
+
+        <!-- LAYER 1: SOURCE -->
+        <div class="zone-source">
+            <div class="text-xs font-bold uppercase tracking-wider text-indigo-400 mb-3">📡 Data Source Layer</div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div class="node-card node-source" onclick="show('lichess')" id="n-lichess">
+                    <div class="icon-box">🌐</div>
+                    <div>
+                        <div class="font-semibold text-sm text-slate-100">Lichess API</div>
+                        <div class="text-xs text-slate-400">Stream game theo kênh (bullet…)</div>
+                    </div>
+                </div>
+                <div class="node-card node-source" onclick="show('producer')" id="n-producer">
+                    <div class="icon-box">🚀</div>
+                    <div>
+                        <div class="font-semibold text-sm text-slate-100">realtime_move.py</div>
+                        <div class="text-xs text-slate-400">Producer — ThreadPoolExecutor</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="arrow">↓</div>
+
+        <!-- LAYER 2: KAFKA -->
+        <div class="node-card node-kafka-card flex-col gap-2" onclick="show('kafka')" id="n-kafka">
+            <div class="flex items-center gap-3 w-full">
+                <div class="icon-box">🗂️</div>
+                <div class="flex-1">
+                    <div class="font-bold text-slate-100">Apache Kafka</div>
+                    <div class="text-xs text-slate-400">Message Broker — Trạm phân phối trung tâm</div>
+                </div>
+            </div>
+            <div class="flex flex-wrap gap-1.5 pl-1">
+                <span class="topic-pill">📌 move</span>
+                <span class="topic-pill">📌 game</span>
+                <span class="topic-pill">📌 user</span>
+                <span class="topic-pill">📌 elo</span>
+            </div>
+        </div>
+
+        <div class="arrow">↓</div>
+
+        <!-- LAYER 3: HOT + COLD SPLIT -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+            <!-- HOT PATH -->
+            <div class="zone-hot flex flex-col gap-2">
+                <div class="flex items-center justify-between mb-1">
+                    <span class="text-xs font-bold uppercase tracking-wider text-rose-400">🔥 Hot Path (Real-time)</span>
+                </div>
+
+                <div class="node-card node-hot" onclick="show('consumer_moves')" id="n-cmoves">
+                    <div class="icon-box">⚡</div>
+                    <div>
+                        <div class="font-semibold text-sm text-slate-100">consumer_moves.py</div>
+                        <div class="text-xs text-slate-400">topic: <span class="font-mono text-rose-300">move</span> → Stockfish UDF</div>
+                    </div>
+                </div>
+
+                <div class="node-card node-hot" onclick="show('consumer_users')" id="n-cusers">
+                    <div class="icon-box">👤</div>
+                    <div>
+                        <div class="font-semibold text-sm text-slate-100">consumer_users.py</div>
+                        <div class="text-xs text-slate-400">topic: <span class="font-mono text-rose-300">user</span> → dim_users</div>
+                    </div>
+                </div>
+
+                <div class="node-card node-hot" onclick="show('consumer_games')" id="n-cgames">
+                    <div class="icon-box">♟️</div>
+                    <div>
+                        <div class="font-semibold text-sm text-slate-100">consumer_games.py</div>
+                        <div class="text-xs text-slate-400">topic: <span class="font-mono text-rose-300">game</span> → dim_games</div>
+                    </div>
+                </div>
+
+                <div class="arrow">↓</div>
+
+                <div class="node-card node-pg" onclick="show('postgres')" id="n-pg">
+                    <div class="icon-box">🐘</div>
+                    <div>
+                        <div class="font-semibold text-sm text-slate-100">PostgreSQL (Gold)</div>
+                        <div class="text-xs text-slate-400">fact_moves, dim_users, dim_games</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COLD PATH -->
+            <div class="zone-cold flex flex-col gap-2">
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="text-xs font-bold uppercase tracking-wider text-teal-400">🧊 Cold Path (Batch)</span>
+                    <span class="todo-badge">PLANNED</span>
+                </div>
+
+                <div class="node-card node-cold opacity-70" onclick="show('dump')" id="n-dump">
+                    <div class="icon-box">📥</div>
+                    <div>
+                        <div class="font-semibold text-sm text-slate-100">Kafka Connect / Sink</div>
+                        <div class="text-xs text-slate-400">Gom batch mỗi 15 phút</div>
+                    </div>
+                </div>
+
+                <div class="arrow">↓</div>
+
+                <div class="node-card node-cold opacity-70" onclick="show('datalake')" id="n-lake">
+                    <div class="icon-box">🪣</div>
+                    <div>
+                        <div class="font-semibold text-sm text-slate-100">Data Lake — Bronze</div>
+                        <div class="text-xs text-slate-400">Raw JSON → S3 / MinIO (.gz)</div>
+                    </div>
+                </div>
+
+                <div class="arrow">↓</div>
+
+                <div class="node-card node-cold opacity-70" onclick="show('airflow')" id="n-airflow">
+                    <div class="icon-box">🕒</div>
+                    <div>
+                        <div class="font-semibold text-sm text-slate-100">Airflow + Spark Batch</div>
+                        <div class="text-xs text-slate-400">Nightly → Silver (Parquet)</div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</main>
+
+<!-- RIGHT: Info Panel -->
+<aside id="info-panel" class="w-full md:w-[38%] h-full flex flex-col z-50">
+    <div class="p-5 border-b border-slate-700 flex items-center gap-3 bg-slate-800/60">
+        <div class="w-7 h-7 rounded-full bg-blue-900 text-blue-300 flex items-center justify-content font-bold text-sm flex-shrink-0 justify-center">i</div>
+        <h2 class="text-base font-bold text-slate-100">Chi tiết Kiến trúc</h2>
+    </div>
+    <div class="p-5 flex-1 overflow-y-auto" id="info-content">
+        <div class="flex flex-col items-center justify-center h-full text-slate-500 text-center gap-4">
+            <svg class="w-12 h-12 opacity-40 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5"/></svg>
+            <p class="text-sm">Click vào bất kỳ khối nào<br>để xem chi tiết.</p>
+        </div>
+    </div>
+</aside>
+
+<script>
+const details = {
+    lichess: {
+        tag:'DATA SOURCE', tagClass:'bg-indigo-900 text-indigo-300 border border-indigo-700',
+        title:'Lichess API — Nguồn dữ liệu',
+        desc:'Lichess cung cấp API stream NDJSON miễn phí. Mỗi ván cờ đang diễn ra phát ra từng nước đi theo thời gian thực qua HTTP Streaming.',
+        list:[
+            '<code class="bg-slate-800 px-1 rounded text-sky-300">GET /api/stream/game/{id}</code> — Stream nước đi realtime.',
+            'Sự kiện <b>gameFull</b> (đầu ván): lấy thông tin 2 người chơi, rating ban đầu.',
+            'Sự kiện <b>gameState</b>: mỗi nước đi mới, FEN, thời gian còn lại.',
+            'Sự kiện kết thúc: kích hoạt fetch profile người dùng qua <code class="bg-slate-800 px-1 rounded text-sky-300">GET /api/user/{username}</code>.'
+        ]
+    },
+    producer: {
+        tag:'PRODUCER', tagClass:'bg-indigo-900 text-indigo-300 border border-indigo-700',
+        title:'realtime_move.py — Kafka Producer',
+        desc:'File trung tâm điều phối toàn bộ ingestion. Dùng <b>ThreadPoolExecutor</b> để theo dõi nhiều ván cờ song song.',
+        list:[
+            'Lấy danh sách game đang diễn ra qua <code class="bg-slate-800 px-1 rounded text-sky-300">get_game_id_a_channel()</code>.',
+            'Mỗi ván chạy trong 1 thread riêng: <code class="bg-slate-800 px-1 rounded text-sky-300">listen_to_one_game_moves()</code>.',
+            'Gửi nước đi vào topic <b>move</b> ngay lập tức (hot).',
+            'Khi ván kết thúc: callback gửi <b>game</b>, <b>user</b>, <b>elo</b> lên Kafka.'
+        ],
+        code:`producer_game = MyProducer('game')
+producer_user = MyProducer('user')
+producer_elo  = MyProducer('elo')
+producer_move = MyProducer('move')
+
+listen_to_multi_game_moves_in_channel(
+    'bullet', producer_game, producer_elo,
+    producer_user, producer_move,
+    max_workers=5, time_sleep=20
+)`
+    },
+    kafka: {
+        tag:'MESSAGE BROKER', tagClass:'bg-amber-900 text-amber-300 border border-amber-700',
+        title:'Apache Kafka — Trạm phân phối',
+        desc:'Kafka tách biệt hoàn toàn Producer và Consumer. Dữ liệu được giữ lại (retention) nên nếu consumer bị crash, nó đọc lại được từ offset cuối cùng.',
+        list:[
+            '<b>topic: move</b> — Từng nước đi realtime (nhiều nhất, hot nhất).',
+            '<b>topic: game</b> — Kết quả ván cờ khi kết thúc.',
+            '<b>topic: user</b> — Profile người chơi (sau khi ván kết thúc).',
+            '<b>topic: elo</b> — Rating lịch sử theo từng loại cờ (perfs).',
+            'Consumer Group đảm bảo Hot Path và Cold Path đọc độc lập, không ảnh hưởng nhau.'
+        ]
+    },
+    consumer_moves: {
+        tag:'HOT PATH', tagClass:'bg-rose-900 text-rose-300 border border-rose-700',
+        title:'consumer_moves.py — Phân tích nước đi',
+        desc:'Consumer quan trọng nhất. Đọc từ topic <b>move</b>, dùng Pandas UDF nhúng Stockfish để tính điểm centipawn ngay lập tức.',
+        list:[
+            'Schema: <code class="bg-slate-800 px-1 rounded text-sky-300">game_id, prev_fen, move, fen, color_turn, time_left, num_of_moves</code>.',
+            'Stockfish UDF chạy song song trên từng worker của Spark.',
+            'Output: <b>cp_loss</b> (centipawn loss), <b>is_blunder</b>, <b>remark</b> (Good/Inaccuracy/Mistake/Blunder).',
+            'Sink: PostgreSQL table <b>fact_moves</b>.'
+        ],
+        code:`@pandas_udf("struct<cp_loss:double,
+  is_blunder:boolean,remark:string>")
+def stockfish_udf(game_id, fen, uci):
+    engine = chess.engine.SimpleEngine\\
+               .popen_uci(STOCKFISH_PATH)
+    # ... tính cp_loss, phân loại ...
+    engine.quit()
+    return pd.DataFrame(results)`
+    },
+    consumer_users: {
+        tag:'HOT PATH', tagClass:'bg-rose-900 text-rose-300 border border-rose-700',
+        title:'consumer_users.py — Transform User',
+        desc:'Đọc từ topic <b>user</b>. Mỗi message chứa mảng dữ liệu của 2 người chơi (white + black). Dùng <b>arrays_zip + explode</b> để tách thành từng row.',
+        list:[
+            'Schema: tất cả field là ArrayType (white & black gộp chung).',
+            '<b>arrays_zip → explode</b>: 1 message → 2 rows riêng biệt.',
+            'safe_cast cho <b>fide_rating</b>: string "" → null trước khi ép integer.',
+            '<b>created_at</b>: epoch ms / 1000 → timestamp.',
+            'Computed column: <b>win_rate_pct</b> = win_count / all_count × 100.',
+            'Sink: PostgreSQL table <b>dim_users</b>.'
+        ],
+        code:`df_flat = df_parsed\\
+  .withColumn("zipped",
+      arrays_zip(*columns_to_zip))\\
+  .select(explode("zipped").alias("row"))\\
+  .select("row.*")
+
+# fide_rating: "" → null → integer
+safe_cast("fide_rating", "integer")`
+    },
+    consumer_games: {
+        tag:'HOT PATH', tagClass:'bg-rose-900 text-rose-300 border border-rose-700',
+        title:'consumer_games.py — Transform Game',
+        desc:'Đọc từ topic <b>game</b>. Mỗi message là 1 ván cờ đã kết thúc với đầy đủ metadata.',
+        list:[
+            'Schema: <code class="bg-slate-800 px-1 rounded text-sky-300">game_id, winner, status, turns, white_id, black_id, speed, perf, createdAt</code>.',
+            '<b>winner</b>: "white"→0, "black"→1, otherwise→-1 (draw/aborted).',
+            '<b>createdAt</b>: epoch ms / 1000 → timestamp.',
+            'Filter: loại ván có turns < 0.',
+            'Sink: PostgreSQL table <b>dim_games</b>.'
+        ],
+        code:`df = df_parsed.filter(
+    col('game_id').isNotNull() &
+    (col('turns') >= 0)
+).withColumn('winner',
+    when(col('winner')=='white', 0)
+   .when(col('winner')=='black', 1)
+   .otherwise(-1)
+)`
+    },
+    postgres: {
+        tag:'GOLD LAYER SINK', tagClass:'bg-sky-900 text-sky-300 border border-sky-700',
+        title:'PostgreSQL — Gold Layer',
+        desc:'Cơ sở dữ liệu chứa dữ liệu đã được xử lý, sẵn sàng cho phân tích và dashboard. 3 consumer ghi vào 3 bảng độc lập.',
+        list:[
+            '<b>fact_moves</b>: Mọi nước đi + điểm Stockfish (Blunder, Mistake…).',
+            '<b>dim_users</b>: Profile người chơi, tỷ lệ thắng, FIDE rating.',
+            '<b>dim_games</b>: Thông tin ván cờ, kết quả, thể loại.',
+            'Dashboard (Metabase / Grafana) kết nối trực tiếp để hiển thị Live.'
+        ]
+    },
+    dump: {
+        tag:'COLD PATH — PLANNED', tagClass:'bg-teal-900 text-teal-300 border border-teal-700',
+        title:'Kafka Connect Sink — Batch Dump',
+        desc:'Thành phần tương lai của Cold Path. Thay vì xử lý từng message, luồng này gom dữ liệu thành chunk lớn trước khi lưu.',
+        list:[
+            'Trigger: mỗi 15 phút HOẶC mỗi 100MB dữ liệu.',
+            'Không cần CPU mạnh — chỉ đọc và ghi file.',
+            'Tùy chọn: Kafka Connect S3 Sink Connector, hoặc script Python đơn giản.'
+        ]
+    },
+    datalake: {
+        tag:'COLD STORAGE — PLANNED', tagClass:'bg-teal-900 text-teal-300 border border-teal-700',
+        title:'Data Lake — Bronze Layer',
+        desc:'Kho lưu trữ "nguyên liệu thô". Mọi message Kafka được nén và lưu vĩnh viễn ở đây trước khi bị xử lý.',
+        list:[
+            'Định dạng: <b>.json.gz</b> — nén cao, chi phí thấp.',
+            'Lưu trữ: S3 (AWS) hoặc MinIO (self-hosted).',
+            'Vai trò "cứu cánh": nếu PostgreSQL mất dữ liệu, rebuild từ đây.',
+            'Partition theo ngày: <code class="bg-slate-800 px-1 rounded text-sky-300">year=2026/month=07/day=18/</code>'
+        ]
+    },
+    airflow: {
+        tag:'BATCH PROCESSING — PLANNED', tagClass:'bg-teal-900 text-teal-300 border border-teal-700',
+        title:'Airflow + Spark Batch — Silver Layer',
+        desc:'Chạy theo lịch (thường là 12h đêm). Airflow điều phối Spark Batch đọc Bronze, làm sạch và tính toán tổng hợp.',
+        list:[
+            'Bronze → Silver: parse, clean, ép kiểu, lưu <b>Parquet</b>.',
+            'Tính toán lịch sử: "Khai cuộc nào thắng nhiều nhất tuần qua?"',
+            'Parquet siêu nhẹ, Data Analyst dùng SQL (Trino/Athena) để phân tích chiến thuật.',
+            'Có thể replay lại toàn bộ lịch sử nếu logic thay đổi.'
+        ]
+    }
+};
+
+function show(key) {
+    document.querySelectorAll('.node-card').forEach(el => el.classList.remove('active'));
+    const el = document.getElementById('n-' + key);
+    if (el) el.classList.add('active');
+
+    const d = details[key];
+    const panel = document.getElementById('info-content');
+    let html = `<div class="fade-up">
+        <span class="inline-block px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded mb-3 ${d.tagClass}">${d.tag}</span>
+        <h3 class="text-lg font-bold text-slate-100 mb-3">${d.title}</h3>
+        <p class="text-sm text-slate-400 mb-5 leading-relaxed">${d.desc}</p>`;
+
+    if (d.list) {
+        html += `<ul class="space-y-2.5 mb-5">`;
+        d.list.forEach(item => {
+            html += `<li class="flex items-start gap-2 text-sm text-slate-300">
+                <svg class="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                <span>${item}</span></li>`;
+        });
+        html += `</ul>`;
+    }
+    if (d.code) {
+        html += `<div class="mt-2"><div class="text-xs font-bold text-slate-500 uppercase mb-1.5 tracking-wider">Mã minh họa</div><pre class="code-block">${d.code}</pre></div>`;
+    }
+    html += `</div>`;
+    panel.innerHTML = html;
+}
+
+window.onload = () => setTimeout(() => show('kafka'), 300);
+</script>
+</body>
+</html>

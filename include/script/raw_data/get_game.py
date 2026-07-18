@@ -46,9 +46,3 @@ def get_game_id_multi_channel(list_channel, dict_list_game_id):
 
     return dict_list_game_id
 
-# list_channel = get_all_channel()
-
-# dict_list_game_id ={}
-# dict_list_game_id = get_game_id_multi_channel(list_channel=list_channel, dict_list_game_id= dict_list_game_id)
-
-# print(dict_list_game_id)

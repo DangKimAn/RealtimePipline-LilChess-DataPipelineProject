@@ -3,3 +3,9 @@ requests
 beautifulsoup4
 pandas
 confluent-kafka
+pyspark 
+python-chess
+pyarrow
+chess
+dotenv 
+psycopg2-binary

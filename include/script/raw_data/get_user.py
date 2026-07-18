@@ -7,8 +7,10 @@ def get_user(username):
     data_user = {}
     try:
         response = requests.get(url=url)
+        print(f'get user {username} status {response.status_code}')
         if response.status_code == 200:
             json_data = response.json()
+            # print(json)
             data_user['id'] = [json_data.get('id')]
             data_user['username'] = [json_data.get('username')]
             data_user['title'] = [json_data.get('title')]

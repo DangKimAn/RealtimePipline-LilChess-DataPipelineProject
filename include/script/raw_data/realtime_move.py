@@ -29,18 +29,20 @@ def listen_to_one_game_moves(game_id , producer_move):
     }
     # Không cần headers token, chỉ cần stream=True
     response = requests.get(url, stream= True, headers= headers)
+    print(f'get game : {game_id} status {response.status_code}')
     data_moves = { 
         'game_id': [],
         'num_of_moves':[],
         'color_turn':[],
         'fen' :[],
         'time_left':[],
-        'move':[]
+        'move':[],
+        'prev_fen':[]
          }
     # print(response.json())
 
     data_game ={}
-
+    prev_fen =''
     get_user_white_id_after = {}
     get_user_white_elo_after = {}
     get_user_black_id_after = {}
@@ -50,26 +52,30 @@ def listen_to_one_game_moves(game_id , producer_move):
         for line in response.iter_lines():
             if line:
                 raw_data = json.loads(line.decode('utf-8'))
+
+                
                 if raw_data.get('lm'):
                     fen = str(raw_data.get('fen')).split(' ')
-                    data_moves['fen'].append(fen[0])
+                    data_moves['fen'].append(raw_data.get('fen'))
                     data_moves['move'].append(raw_data.get('lm'))
                     data_moves['time_left'].append(int(raw_data.get('wc')) if str.lower(fen[1]) == 'b' else int(raw_data.get('bc')))
                     data_moves['num_of_moves'].append(int(fen[len(fen) -1 ]) if str.lower(fen[1]) == 'b'  else int(fen[len(fen) -1 ]) -1 )
                     data_moves['color_turn'].append('white' if str.lower(fen[1]) == 'b' else 'black')
                     data_moves['game_id'].append(game_id)
-
+                    data_moves['prev_fen'].append(prev_fen)
                     data_test ={
-                        'fen' : fen[0] ,
+                        'fen' : raw_data.get('fen'),
                     'move' : raw_data.get('lm') ,
                     'time_left' : int(raw_data.get('wc')) if str.lower(fen[1]) == 'b' else int(raw_data.get('bc')), 
                     'num_of_moves' : int(fen[len(fen) -1 ]) if str.lower(fen[1]) == 'b'  else int(fen[len(fen) -1 ]) -1 ,
                     'color_turn' : 'white' if str.lower(fen[1]) == 'b' else 'black',
-                    'game_id' : game_id
+                    'game_id' : game_id,
+                    'prev_fen' : prev_fen
                     }
-                    # print(data_test)
+                    prev_fen = raw_data.get('fen')
                     producer_move.send_message(key=game_id, value=json.dumps(data_test))
                 elif raw_data.get('winner'):
+                
                     data_game['game_id'] = game_id
                     data_game['winner'] = raw_data.get('winner') if raw_data.get('winner') else ''
                     data_game['winner_id'] = raw_data.get('players').get(raw_data.get('winner')).get('user').get('id')
@@ -83,10 +89,16 @@ def listen_to_one_game_moves(game_id , producer_move):
                     data_game['speed'] = raw_data.get('speed')
                     data_game['perf'] = raw_data.get('perf')
                     data_game['createdAt'] = raw_data.get('createdAt')
-                    get_user_white_id_after , get_user_white_elo_after = get_user(username=raw_data.get('players').get('white').get('user').get('id'))
-                    get_user_black_id_after , get_user_black_elo_after = get_user(username=raw_data.get('players').get('black').get('user').get('id'))
+                    try:
+                        get_user_white_id_after , get_user_white_elo_after = get_user(username=raw_data.get('players').get('white').get('user').get('id'))
+                        time.sleep(3)
+                        get_user_black_id_after , get_user_black_elo_after = get_user(username=raw_data.get('players').get('black').get('user').get('id'))
+                    except:
+                        
+                        print('Get user information failed')
+
                 elif raw_data.get('id') and not raw_data.get('lm'):
-                    # Message gameFull
+
                     white_info = raw_data.get('white', {})
                     black_info = raw_data.get('black', {})
                     if isinstance(white_info, dict) and 'rating' in white_info:
@@ -111,10 +123,19 @@ def on_game_finished(game_id, active_games, producer_game, producer_elo, produce
     try:
         data_moves, data_game, data_user, data_elo = future.result()
         print(f"\n[HOÀN THÀNH] Ván cờ {game_id} đã lưu trữ xong dữ liệu!")
-        
-        producer_game.send_message(key=game_id, value=json.dumps(data_game))
-        producer_user.send_message(key=game_id, value=json.dumps(data_user))
-        producer_elo.send_message(key=game_id, value=json.dumps(data_elo))
+        if data_game:
+            producer_game.send_message(key=game_id, value=json.dumps(data_game))
+        else:
+            print('cant send data_game')
+        if data_user:
+            producer_user.send_message(key=game_id, value=json.dumps(data_user))
+        else:
+            print('cant send data_user')
+
+        if data_elo:
+            producer_elo.send_message(key=game_id, value=json.dumps(data_elo))
+        else:
+            print('cant send data_elo')
     except Exception as e:
         print(f"[LỖI] Ván {game_id} kết thúc thất bại: {e}")
 
@@ -122,21 +143,20 @@ def listen_to_multi_game_moves_in_channel(channel , producer_game , producer_elo
     active_games = set()
     try:
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            print(f"Bắt đầu theo dõi kênh: {channel}...")
             while True:
                 if len(active_games) < max_workers:
                     dict_list_game_id = get_game_id_a_channel(channel)
-                    print(f'dict_list_game_id {dict_list_game_id}')
                     if dict_list_game_id is None:
                         print(f"Không thể lấy danh sách game cho kênh {channel}, chờ 10s rồi thử lại...")
                         time.sleep(10)
                         continue
 
-                    list_game_id = dict_list_game_id.get(channel)
+                    list_game_id = dict_list_game_id.get(channel)[:5]
                     
                     if list_game_id:
                         for game_id in list_game_id:
                             if game_id not in active_games:
+                                # print(f'start game : {game_id}')
                                 active_games.add(game_id)                            
                                 future = executor.submit(listen_to_one_game_moves, game_id, producer_move)
                                 callback = partial(on_game_finished, game_id, active_games, producer_game ,producer_elo , producer_user)
@@ -149,27 +169,12 @@ def listen_to_multi_game_moves_in_channel(channel , producer_game , producer_elo
         print(e)
         return False
 
-def safe_api_call(func, *args, **kwargs):
-    """
-    Wrapper để gọi API an toàn. Nếu gặp 429, đợi và thử lại.
-    """
-    while True:
-        try:
-            return func(*args, **kwargs)
-        except Exception as e:
-            if hasattr(e, 'response') and e.response.status_code == 429:
-                wait_time = int(e.response.headers.get("Retry-After", 30)) # Lichess bảo đợi bao lâu thì đợi bấy nhiêu
-                print(f"[CẢNH BÁO] Bị rate limit! Chờ {wait_time}s...")
-                time.sleep(wait_time)
-            else:
-                raise e
 
 if __name__ == "__main__":
     producer_game = MyProducer(topic_name='game')
     producer_user = MyProducer(topic_name='user')
     producer_elo = MyProducer(topic_name='elo')
     producer_move = MyProducer(topic_name='move')
-    max_workers = 50 
-    time_sleep= 10
+    max_workers = 5
+    time_sleep= 20
     listen_to_multi_game_moves_in_channel('bullet' , producer_game , producer_elo , producer_user , producer_move, max_workers , time_sleep)
-    # safe_api_call(listen_to_multi_game_moves_in_channel, 'bullet' , producer_game , producer_elo , producer_user , producer_move )
