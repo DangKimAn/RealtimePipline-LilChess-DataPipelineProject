@@ -22,7 +22,7 @@ move_schema = StructType([
     StructField("num_of_moves", IntegerType(), True)
 ])
 
-spark = SparkSession.builder.appName("ChessRealTime").getOrCreate()
+# spark = SparkSession.builder.appName("ChessRealTime").getOrCreate()
 
 df_kafka_move = spark.readStream \
     .format("kafka") \
@@ -131,10 +131,116 @@ df_evaluated = df_parsed_move \
     .withColumn("remark", col("eval.remark")) \
     .drop("eval")
 
+# Khởi tạo Connection Pool
+pg_pool = None
+
+def init_connection_pool():
+    global pg_pool
+    if pg_pool is None:
+        try:
+            pg_pool = pool.ThreadedConnectionPool(
+                minconn=1,
+                maxconn=10,
+                host=DB_HOST,
+                port=DB_PORT,
+                dbname=DB_NAME,
+                user=DB_USER,
+                password=DB_PASSWORD
+            )
+            print("Connection pool created successfully")
+        except Exception as e:
+            print(f"Error creating connection pool: {e}")
+
+def create_table_if_not_exists():
+    try:
+        conn = psycopg2.connect(
+            host=DB_HOST,
+            port=DB_PORT,
+            dbname=DB_NAME,
+            user=DB_USER,
+            password=DB_PASSWORD
+        )
+        cursor = conn.cursor()
+        create_table_query = """
+        CREATE TABLE IF NOT EXISTS game_evaluations (
+            game_id VARCHAR(50),
+            prev_fen TEXT,
+            move VARCHAR(20),
+            fen TEXT,
+            color_turn VARCHAR(10),
+            time_left INTEGER,
+            num_of_moves INTEGER,
+            cp_loss DOUBLE PRECISION,
+            remark INTEGER,
+            PRIMARY KEY (game_id, num_of_moves)
+        );
+        """
+        cursor.execute(create_table_query)
+        conn.commit()
+        cursor.close()
+        conn.close()
+        print("Table 'game_evaluations' verified/created successfully.")
+    except Exception as e:
+        print(f"Error creating table: {e}")
+
+def write_to_postgres(batch_df, epoch_id):
+    if batch_df.isEmpty():
+        return
+        
+    records = batch_df.collect()
+    
+    # Chuẩn bị dữ liệu để insert
+    values = []
+    for row in records:
+        values.append((
+            row['game_id'], 
+            row['prev_fen'], 
+            row['move'], 
+            row['fen'], 
+            row['color_turn'], 
+            row['time_left'], 
+            row['num_of_moves'],
+            row['cp_loss'],
+            row['remark']
+        ))
+        
+    insert_query = """
+    INSERT INTO game_evaluations (
+        game_id, prev_fen, move, fen, color_turn, time_left, num_of_moves, cp_loss, remark
+    ) VALUES %s
+    ON CONFLICT (game_id, num_of_moves) DO NOTHING;
+    """
+    
+    conn = None
+    try:
+        conn = pg_pool.getconn()
+        cursor = conn.cursor()
+        execute_values(cursor, insert_query, values)
+        conn.commit()
+        cursor.close()
+    except Exception as e:
+        print(f"Error inserting batch: {e}")
+        if conn:
+            conn.rollback()
+    finally:
+        if conn:
+            pg_pool.putconn(conn)
+
+init_connection_pool()
+create_table_if_not_exists()
+
+# Cấu hình Trigger để chống ngập lụt Database
 query = df_evaluated.writeStream \
     .outputMode("append") \
-    .format("console") \
-    .option("truncate", "false") \
+    .foreachBatch(write_to_postgres) \
+    .trigger(processingTime='5 seconds') \
     .start()
+
+
+# query = df_evaluated.writeStream \
+#     .outputMode("append") \
+#     .format("console") \
+#     .option("truncate", "false") \
+#     .start()
 
 query.awaitTermination()
