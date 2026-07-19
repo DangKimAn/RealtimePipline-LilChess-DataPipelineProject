@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hot Path Data Pipeline - LilChess</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a;
+            color: #e2e8f0;
+        }
+
+        .node {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 0.75rem;
+            padding: 1.25rem;
+            transition: all 0.3s ease;
+        }
+
+        .node:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+        }
+
+        .arrow-down {
+            width: 2px;
+            height: 30px;
+            background: #475569;
+            margin: 0 auto;
+            position: relative;
+        }
+
+        .arrow-down::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: -4px;
+            border-width: 5px 5px 0;
+            border-style: solid;
+            border-color: #475569 transparent transparent;
+        }
+    </style>
+</head>
+
+<body class="min-h-screen flex items-center justify-center p-8">
+
+    <div class="max-w-4xl w-full flex flex-col gap-4 relative">
+
+        <div class="text-center mb-6">
+            <h1 class="text-3xl font-bold text-white mb-2">🔥 Hot Path Pipeline (Real-time)</h1>
+            <p class="text-slate-400">Từ Lichess API đến Power BI Dashboard</p>
+        </div>
+
+        <!-- 1. INGESTION LAYER -->
+        <div class="border-2 border-dashed border-indigo-500/30 rounded-xl p-6 bg-indigo-900/10 relative">
+            <div
+                class="absolute -top-3 left-4 bg-slate-900 px-2 text-xs font-bold text-indigo-400 uppercase tracking-widest">
+                1. Ingestion Layer</div>
+            <div class="node border-indigo-500/50 flex items-center gap-4">
+                <div class="text-4xl">☁️</div>
+                <div>
+                    <h3 class="text-lg font-bold text-indigo-300">AWS EC2 (Producer)</h3>
+                    <p class="text-sm text-slate-400 mt-1"><code
+                            class="text-pink-400 bg-slate-800 px-1 rounded">realtime_move.py</code> cào dữ liệu từ
+                        Lichess API (HTTP Streaming) thông qua ThreadPoolExecutor.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="arrow-down"></div>
+
+        <!-- 2. MESSAGE BROKER LAYER -->
+        <div class="border-2 border-dashed border-amber-500/30 rounded-xl p-6 bg-amber-900/10 relative">
+            <div
+                class="absolute -top-3 left-4 bg-slate-900 px-2 text-xs font-bold text-amber-400 uppercase tracking-widest">
+                2. Message Broker</div>
+            <div class="node border-amber-500/50 flex flex-col gap-3">
+                <div class="flex items-center gap-4">
+                    <div class="text-4xl">🐿️</div>
+                    <div>
+                        <h3 class="text-lg font-bold text-amber-300">Confluent Cloud (Apache Kafka)</h3>
+                        <p class="text-sm text-slate-400">Trạm trung chuyển dữ liệu Real-time (SASL/SCRAM-SHA-256).</p>
+                    </div>
+                </div>
+                <div class="flex gap-2 mt-2">
+                    <span
+                        class="bg-slate-800 border border-slate-600 text-xs px-3 py-1 rounded-full text-amber-200">Topic:
+                        move</span>
+                    <span
+                        class="bg-slate-800 border border-slate-600 text-xs px-3 py-1 rounded-full text-amber-200">Topic:
+                        user</span>
+                    <span
+                        class="bg-slate-800 border border-slate-600 text-xs px-3 py-1 rounded-full text-amber-200">Topic:
+                        game</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="arrow-down"></div>
+
+        <!-- 3. PROCESSING LAYER -->
+        <div class="border-2 border-dashed border-rose-500/30 rounded-xl p-6 bg-rose-900/10 relative">
+            <div
+                class="absolute -top-3 left-4 bg-slate-900 px-2 text-xs font-bold text-rose-400 uppercase tracking-widest">
+                3. Processing Layer (PySpark Structured Streaming)</div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+
+                <div class="node border-rose-500/50">
+                    <div class="text-3xl mb-2">⚡</div>
+                    <h4 class="font-bold text-rose-300 text-sm mb-1">consumer_moves.py</h4>
+                    <p class="text-xs text-slate-400 mb-2">Đọc topic <code class="text-amber-200">move</code></p>
+                    <div class="text-xs bg-slate-800 text-slate-300 p-2 rounded text-left">
+                        Dùng Stockfish UDF tính toán Centipawn Loss, xác định Blunder/Mistake.
+                    </div>
+                </div>
+
+                <div class="node border-rose-500/50">
+                    <div class="text-3xl mb-2">👤</div>
+                    <h4 class="font-bold text-rose-300 text-sm mb-1">consumer_users.py</h4>
+                    <p class="text-xs text-slate-400 mb-2">Đọc topic <code class="text-amber-200">user</code></p>
+                    <div class="text-xs bg-slate-800 text-slate-300 p-2 rounded text-left">
+                        Dùng arrays_zip + explode tách data, tính tỷ lệ thắng win_rate_pct.
+                    </div>
+                </div>
+
+                <div class="node border-rose-500/50">
+                    <div class="text-3xl mb-2">♟️</div>
+                    <h4 class="font-bold text-rose-300 text-sm mb-1">consumer_games.py</h4>
+                    <p class="text-xs text-slate-400 mb-2">Đọc topic <code class="text-amber-200">game</code></p>
+                    <div class="text-xs bg-slate-800 text-slate-300 p-2 rounded text-left">
+                        Format time (epoch to timestamp), chuẩn hóa cờ winner (0/1/-1).
+                    </div>
+                </div>
+
+            </div>
+            <div class="text-center mt-4 text-xs text-slate-500 italic">Môi trường tính toán: Google Colab (12GB RAM)
+            </div>
+        </div>
+
+        <div class="arrow-down"></div>
+
+        <!-- 4. STORAGE LAYER (SINK) -->
+        <div class="border-2 border-dashed border-sky-500/30 rounded-xl p-6 bg-sky-900/10 relative">
+            <div
+                class="absolute -top-3 left-4 bg-slate-900 px-2 text-xs font-bold text-sky-400 uppercase tracking-widest">
+                4. Storage Layer (Gold)</div>
+            <div class="node border-sky-500/50 flex flex-col gap-4">
+                <div class="flex items-center gap-4">
+                    <div class="text-4xl">🐘</div>
+                    <div>
+                        <h3 class="text-lg font-bold text-sky-300">AWS RDS (PostgreSQL)</h3>
+                        <p class="text-sm text-slate-400">Lưu trữ dữ liệu đã qua xử lý và phân tích.</p>
+                    </div>
+                </div>
+                <div class="grid grid-cols-3 gap-2 text-center text-xs font-mono">
+                    <div class="bg-slate-800 py-2 rounded text-sky-200 border border-sky-800">Table: fact_moves</div>
+                    <div class="bg-slate-800 py-2 rounded text-sky-200 border border-sky-800">Table: dim_users</div>
+                    <div class="bg-slate-800 py-2 rounded text-sky-200 border border-sky-800">Table: dim_games</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="arrow-down"></div>
+
+        <!-- 5. SERVING LAYER -->
+        <div class="border-2 border-dashed border-green-500/30 rounded-xl p-6 bg-green-900/10 relative">
+            <div
+                class="absolute -top-3 left-4 bg-slate-900 px-2 text-xs font-bold text-green-400 uppercase tracking-widest">
+                5. Serving Layer</div>
+            <div class="node border-green-500/50 flex items-center gap-4">
+                <div class="text-4xl">📊</div>
+                <div>
+                    <h3 class="text-lg font-bold text-green-300">Power BI Desktop (Local Machine)</h3>
+                    <p class="text-sm text-slate-400 mt-1">Kết nối trực tiếp vào AWS RDS (Port 5432). Vẽ Dashboard trực
+                        quan phân tích nước đi và publish lên Cloud.</p>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</body>
+
+</html>
