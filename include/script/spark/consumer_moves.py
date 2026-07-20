@@ -132,17 +132,21 @@ df_evaluated = df_parsed_move \
     .withColumn("cp_loss", col("eval.cp_loss")) \
     .withColumn("remark", col("eval.remark")) \
     .drop("eval")
+
+
+
 def write_to_postgres(batch_df, epoch_id):
     jdbc_url = f"jdbc:postgresql://{DB_HOST}:{DB_PORT}/{DB_NAME}"
     batch_df.write \
         .format("jdbc") \
         .option("url", jdbc_url) \
-        .option("dbtable", "game_evaluations") \
+        .option("dbtable", "gold.game_evaluations") \
         .option("user", DB_USER) \
         .option("password", DB_PASSWORD) \
         .option("driver", "org.postgresql.Driver") \
         .mode("append") \
         .save()
+
 
 # Cấu hình Trigger để chống ngập lụt Database
 query = df_evaluated.writeStream \
@@ -152,10 +156,5 @@ query = df_evaluated.writeStream \
     .start()
 
 
-# query = df_evaluated.writeStream \
-#     .outputMode("append") \
-#     .format("console") \
-#     .option("truncate", "false") \
-#     .start()
 
 query.awaitTermination()
