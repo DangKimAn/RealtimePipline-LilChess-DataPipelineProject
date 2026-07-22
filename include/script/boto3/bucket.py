@@ -23,7 +23,6 @@ print(bucket_name)
 def upload_data_to_s3( data, bucket_name, object_name):
     
     try:
-        # put_object nhận tham số Body là bytes hoặc string
 
         s3 = boto3.client(
    's3',

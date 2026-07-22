@@ -10,7 +10,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import partial
 import sys
 import os
-# Thêm thư mục `script` (thư mục cha) vào hệ thống path để Python hiểu được package `kafka`
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from kafka.producer import MyProducer
