@@ -9,3 +9,4 @@ pyarrow
 chess
 dotenv 
 psycopg2-binary
+boto3
