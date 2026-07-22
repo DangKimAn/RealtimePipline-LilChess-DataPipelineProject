@@ -8,7 +8,10 @@ import chess.engine
 import pandas as pd 
 from dotenv import load_dotenv
 
-from spark import spark
+from spark import get_spark_session
+
+spark = get_spark_session()
+
 # 1. THÊM prev_move VÀO SCHEMA
 
 

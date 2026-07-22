@@ -2,18 +2,39 @@ import os
 from dotenv import load_dotenv
 from pyspark.sql import SparkSession
 
+# Xử lý path chuẩn chỉnh của bro
 script_dir = os.path.dirname(os.path.abspath(__file__))
 env_path_file = os.path.join('/'.join(script_dir.split('/')[:-3]), '.env')
 load_dotenv(env_path_file)
 
-SCALA_VERSION = os.getenv('SCALA_VERSION')
-SPARK_KAFKA_VERSION = os.getenv('SPARK_KAFKA_VERSION')
-POSTGRES_JDBC_VERSION = os.getenv('POSTGRES_JDBC_VERSION')
+def get_spark_session(mode="streaming"):
 
-spark = SparkSession.builder \
-    .appName("ChessRealTime") \
-    .config("spark.jars.packages", f"org.apache.spark:spark-sql-kafka-0-10_{SCALA_VERSION}:{SPARK_KAFKA_VERSION},org.postgresql:postgresql:{POSTGRES_JDBC_VERSION}") \
-    .getOrCreate()
-
-
-spark.sparkContext.setLogLevel("WARN")
+    SCALA_VERSION = os.getenv('SCALA_VERSION')
+    SPARK_KAFKA_VERSION = os.getenv('SPARK_KAFKA_VERSION')
+    POSTGRES_JDBC_VERSION = os.getenv('POSTGRES_JDBC_VERSION')
+    
+    # Khởi tạo builder cơ bản
+    builder = SparkSession.builder
+    
+    if mode == "streaming":
+        # Nạp thư viện Kafka + Postgres cho Hot Path
+        builder = builder.appName("ChessRealTime") \
+            .config("spark.jars.packages", f"org.apache.spark:spark-sql-kafka-0-10_{SCALA_VERSION}:{SPARK_KAFKA_VERSION},org.postgresql:postgresql:{POSTGRES_JDBC_VERSION}")
+            
+    elif mode == "batch":
+        # Nạp thư viện S3 + Postgres cho Cold Path
+        aws_access_key = os.getenv("AWS_ACCESS_KEY")
+        aws_secret_key = os.getenv("AWS_SECRET_KEY")
+        region = os.getenv('region')
+        
+        builder = builder.appName("ColdPath-S3-to-RDS-Games") \
+            .config("spark.jars.packages", "org.apache.hadoop:hadoop-aws:3.4.1,com.amazonaws:aws-java-sdk-bundle:1.12.367,org.postgresql:postgresql:42.6.0") \
+            .config("spark.hadoop.fs.s3a.access.key", aws_access_key) \
+            .config("spark.hadoop.fs.s3a.secret.key", aws_secret_key) \
+            .config("spark.hadoop.fs.s3a.endpoint", f"s3.{region}.amazonaws.com")
+            
+    # Chốt cấu hình và tạo Session
+    spark = builder.getOrCreate()
+    spark.sparkContext.setLogLevel("ERROR")
+    
+    return spark

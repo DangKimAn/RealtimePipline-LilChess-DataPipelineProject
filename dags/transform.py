@@ -1,5 +1,8 @@
 from datetime import datetime
 from airflow.decorators import dag, task
+from include.script.spark.consumer_games import transform_game_schema
+from include.script.spark.consumer_users import transform_user_schema
+
 
 @dag(
     start_date=datetime(2026, 1, 1),
