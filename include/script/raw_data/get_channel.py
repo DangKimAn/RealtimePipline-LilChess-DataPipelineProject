@@ -4,7 +4,10 @@ from bs4 import BeautifulSoup
 
 def get_all_channel():
     try:
-        response = requests.get('https://lichess.org/games')
+        headers = {
+            "User-Agent": "dangkiman41005@gmail.com/1.0"
+        }
+        response = requests.get('https://lichess.org/games' , headers=headers)
         if response.status_code == 200:
             html = response.text
             soup = BeautifulSoup(html , 'html.parser')

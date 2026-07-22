@@ -27,7 +27,7 @@ def get_game_id_a_channel(channel):
 
 
 def get_game_id_multi_channel(list_channel, dict_list_game_id):
-    with ThreadPoolExecutor(max_workers=100) as executor:
+    with ThreadPoolExecutor(max_workers=10) as executor:
         futures = [
             executor.submit(
                 get_game_id_a_channel,
