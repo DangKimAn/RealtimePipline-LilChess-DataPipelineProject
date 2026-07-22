@@ -14,5 +14,6 @@ spark = SparkSession.builder \
     .appName("ChessRealTime") \
     .config("spark.jars.packages", f"org.apache.spark:spark-sql-kafka-0-10_{SCALA_VERSION}:{SPARK_KAFKA_VERSION},org.postgresql:postgresql:{POSTGRES_JDBC_VERSION}") \
     .getOrCreate()
-# Tắt bớt log rác của Spark để màn hình Console dễ nhìn hơn
+
+
 spark.sparkContext.setLogLevel("WARN")
