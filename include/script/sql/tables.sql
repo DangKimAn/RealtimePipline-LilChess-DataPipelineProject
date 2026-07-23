@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS gold.fact_game(id SERIAL, game_id VARCHAR(50),
                                                                                                                                     perf VARCHAR(50),
                                                                                                                                          created_at TIMESTAMP, collected_at TIMESTAMP DEFAULT now(), -- Khóa chính & Unique phải kèm theo partition key (created_at)
  PRIMARY KEY (id,
-              collected_at), UNIQUE(game_id, created_at)) PARTITION BY RANGE (collected_at);
+              collected_at), UNIQUE(game_id, collected_at)) PARTITION BY RANGE (collected_at);
 
 ---------------------------------------------------------------------------
 -- HÀM HỖ TRỢ TẠO PARTITION TỰ ĐỘNG

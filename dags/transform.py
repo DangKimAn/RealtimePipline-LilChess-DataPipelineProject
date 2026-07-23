@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 @dag(
     start_date=datetime(2026, 1, 1),
     schedule="10 * * * *",
+    is_paused_upon_creation=False, 
     catchup=False,
     tags=["transform"],
 )

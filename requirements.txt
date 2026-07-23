@@ -11,3 +11,4 @@ dotenv
 psycopg2-binary
 boto3
 apache-airflow-providers-postgres
+astro-run-dag 
