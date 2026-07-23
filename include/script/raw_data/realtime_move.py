@@ -15,7 +15,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from kafka.producer import MyProducer
 
-from get_user import get_user
+from get_user import get_user, get_users_bulk
 def listen_to_one_game_moves(game_id , producer_move):  
     # URL lắng nghe nước đi realtime của ván cờ 4LH8VoKa
 
@@ -40,7 +40,8 @@ def listen_to_one_game_moves(game_id , producer_move):
         'prev_fen':[]
          }
     # print(response.json())
-
+    data_user = {}
+    data_elo = {}
     data_game ={}
     prev_fen =''
     get_user_white_id_after = {}
@@ -74,29 +75,72 @@ def listen_to_one_game_moves(game_id , producer_move):
                     }
                     prev_fen = raw_data.get('fen')
                     producer_move.send_message(key=game_id, value=json.dumps(data_test))
-                elif raw_data.get('winner'):
+                # elif raw_data.get('winner'):
                 
+                #     data_game['game_id'] = game_id
+                #     data_game['winner'] = raw_data.get('winner') if raw_data.get('winner') else ''
+                #     data_game['winner_id'] = raw_data.get('players').get(raw_data.get('winner')).get('user').get('id')
+                #     data_game['status_name'] = raw_data.get('status').get('name')
+                #     data_game['status_id'] = raw_data.get('status').get('id')
+                #     data_game['turns'] = raw_data.get('turns')
+                #     data_game['white_id'] = raw_data.get('players').get('white').get('user').get('id')
+                #     data_game['black_id'] = raw_data.get('players').get('black').get('user').get('id')
+                #     data_game['rated'] = raw_data.get('rated')
+                #     data_game['source'] = raw_data.get('source')
+                #     data_game['speed'] = raw_data.get('speed')
+                #     data_game['perf'] = raw_data.get('perf')
+                #     data_game['createdAt'] = raw_data.get('createdAt')
+                #     try:
+                #         # get_user_white_id_after , get_user_white_elo_after = get_user(username=raw_data.get('players').get('white').get('user').get('id'))
+                #         # time.sleep(3)
+                #         # get_user_black_id_after , get_user_black_elo_after = get_user(username=raw_data.get('players').get('black').get('user').get('id'))
+                #         white_id = raw_data.get('players').get('white').get('user').get('id')
+                #         black_id = raw_data.get('players').get('black').get('user').get('id')
+                        
+                #         # Gọi 1 API duy nhất để lấy cả 2 user
+                #         data_user, data_elo = get_users_bulk([white_id, black_id])
+                #     except:
+                        
+                #         print('Get user information failed')
+                elif raw_data.get('status'): # <--- Đổi điều kiện sang 'status'
                     data_game['game_id'] = game_id
-                    data_game['winner'] = raw_data.get('winner') if raw_data.get('winner') else ''
-                    data_game['winner_id'] = raw_data.get('players').get(raw_data.get('winner')).get('user').get('id')
+                    
+                    # Rút trích an toàn để không sập code khi ván cờ Hòa (không có winner)
+                    winner = raw_data.get('winner')
+                    data_game['winner'] = winner if winner else ''
+                    
+                    if winner:
+                        data_game['winner_id'] = raw_data.get('players').get(winner).get('user', {}).get('id', '')
+                    else:
+                        data_game['winner_id'] = ''
+                        
                     data_game['status_name'] = raw_data.get('status').get('name')
                     data_game['status_id'] = raw_data.get('status').get('id')
                     data_game['turns'] = raw_data.get('turns')
-                    data_game['white_id'] = raw_data.get('players').get('white').get('user').get('id')
-                    data_game['black_id'] = raw_data.get('players').get('black').get('user').get('id')
+                    
+                    # Thêm .get('user', {}) để phòng thủ nếu gặp người chơi vô danh (Anonymous)
+                    data_game['white_id'] = raw_data.get('players').get('white').get('user', {}).get('id', '')
+                    data_game['black_id'] = raw_data.get('players').get('black').get('user', {}).get('id', '')
+                    
                     data_game['rated'] = raw_data.get('rated')
                     data_game['source'] = raw_data.get('source')
                     data_game['speed'] = raw_data.get('speed')
                     data_game['perf'] = raw_data.get('perf')
                     data_game['createdAt'] = raw_data.get('createdAt')
+                    
                     try:
-                        get_user_white_id_after , get_user_white_elo_after = get_user(username=raw_data.get('players').get('white').get('user').get('id'))
-                        time.sleep(3)
-                        get_user_black_id_after , get_user_black_elo_after = get_user(username=raw_data.get('players').get('black').get('user').get('id'))
-                    except:
+                        white_id = data_game['white_id']
+                        black_id = data_game['black_id']
                         
-                        print('Get user information failed')
+                        # Chỉ gọi API gộp nếu id hợp lệ
+                        if white_id and black_id:
+                            time.sleep(1)
+                            data_user, data_elo = get_users_bulk([white_id, black_id])
 
+                        # print(data_user)
+                        # print(data_elo)
+                    except Exception as e:
+                        print(f'Get user information failed cho ván {game_id}: {e}')
                 elif raw_data.get('id') and not raw_data.get('lm'):
 
                     white_info = raw_data.get('white', {})
@@ -105,8 +149,8 @@ def listen_to_one_game_moves(game_id , producer_move):
                         data_game['white_rating_before'] = white_info.get('rating')
                         data_game['black_rating_before'] = black_info.get('rating')
 
-        data_user = {k: get_user_white_id_after.get(k, []) + get_user_black_id_after.get(k, []) for k in get_user_white_id_after.keys()}
-        data_elo = {k: get_user_white_elo_after.get(k, []) + get_user_black_elo_after.get(k, []) for k in get_user_white_elo_after.keys()}
+        # data_user = {k: get_user_white_id_after.get(k, []) + get_user_black_id_after.get(k, []) for k in get_user_white_id_after.keys()}
+        # data_elo = {k: get_user_white_elo_after.get(k, []) + get_user_black_elo_after.get(k, []) for k in get_user_white_elo_after.keys()}
 
         return data_moves , data_game , data_user , data_elo
     else:
@@ -123,6 +167,9 @@ def on_game_finished(game_id, active_games, producer_game, producer_elo, produce
     try:
         data_moves, data_game, data_user, data_elo = future.result()
         print(f"\n[HOÀN THÀNH] Ván cờ {game_id} đã lưu trữ xong dữ liệu!")
+        # print(data_game)
+        # print(data_user)
+        # print(data_elo)
         if data_game:
             producer_game.send_message(key=game_id, value=json.dumps(data_game))
         else:
