@@ -6,14 +6,7 @@ from dotenv import load_dotenv
 import os
 
 
-script_dir = os.path.dirname(os.path.abspath(__file__))
-env_path_file = os.path.join('/'.join(script_dir.split('/')[:-3]), '.env')
 
-load_dotenv(env_path_file)
-
-KAFKA_BOOTSTRAP_SERVER = os.getenv('KAFKA_BOOTSTRAP_SERVER')
-API_KEY = os.getenv('API_KEY')
-API_SECRET = os.getenv('API_SECRET')
 
 def delivery_callback(err, msg , key):
     if err:
@@ -25,6 +18,16 @@ def delivery_callback(err, msg , key):
 
 class MyProducer():
     def __init__(self, topic_name):
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        env_path_file = os.path.join('/'.join(script_dir.split('/')[:-3]), '.env')
+
+        load_dotenv(env_path_file)
+
+        KAFKA_BOOTSTRAP_SERVER = os.getenv('KAFKA_BOOTSTRAP_SERVER')
+        API_KEY = os.getenv('API_KEY')
+        API_SECRET = os.getenv('API_SECRET')
+
+        
         self.conf = {
             'bootstrap.servers': KAFKA_BOOTSTRAP_SERVER,
             'security.protocol': 'SASL_SSL',
