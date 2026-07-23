@@ -95,7 +95,7 @@ def get_users_bulk(usernames):
                 #     for k in user_elo.keys():
                 #         data_elos[k].extend(user_elo[k])
                 # print(data_users)
-                print(user_elo)
+                # print(user_elo)
             return data_users, user_elo
             
     except Exception as e:
