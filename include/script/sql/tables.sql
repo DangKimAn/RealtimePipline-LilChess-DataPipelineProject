@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS gold.fact_game(id SERIAL, game_id VARCHAR(50),
                                                                                                                                     perf VARCHAR(50),
                                                                                                                                          created_at TIMESTAMP, collected_at TIMESTAMP DEFAULT now(), -- Khóa chính & Unique phải kèm theo partition key (created_at)
  PRIMARY KEY (id,
-              created_at), UNIQUE(game_id, created_at)) PARTITION BY RANGE (created_at);
+              collected_at), UNIQUE(game_id, created_at)) PARTITION BY RANGE (collected_at);
 
 ---------------------------------------------------------------------------
 -- HÀM HỖ TRỢ TẠO PARTITION TỰ ĐỘNG
@@ -76,7 +76,15 @@ create table if not EXISTS gold.fact_elo(
 -- drop TABLE IF EXISTS gold.users;
 
 -- drop TABLE IF EXISTS gold.game_evaluations;
--- drop TABLE IF EXISTS gold.games;
+-- drop TABLE IF EXISTS gold.fact_game;
 
 -- DROP TABLE if  EXISTS gold.dim_user;
 -- drop TABLE if EXISTS gold.fact_user;
+
+-- truncate table gold.fact_elo;
+-- truncate table gold.game_evaluations;
+-- truncate table gold.fact_game;
+-- truncate table gold.dim_user;
+-- truncate table gold.fact_user;
+
+
