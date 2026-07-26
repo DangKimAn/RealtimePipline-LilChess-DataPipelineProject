@@ -1,45 +1,98 @@
-Overview
-========
+# 🏰 LilChess Data Pipeline
 
-Welcome to Astronomer! This project was generated after you ran 'astro dev init' using the Astronomer CLI. This readme describes the contents of the project, as well as how to run Apache Airflow on your local machine.
+![Data Engineering](https://img.shields.io/badge/Data%20Engineering-Lambda%20Architecture-blue)
+![Apache Kafka](https://img.shields.io/badge/Apache%20Kafka-Streaming-orange)
+![Apache Spark](https://img.shields.io/badge/Apache%20Spark-Processing-E25A1C)
+![Apache Airflow](https://img.shields.io/badge/Apache%20Airflow-Orchestration-017CEE)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Data%20Warehouse-336791)
 
-Project Contents
-================
+A robust Data Engineering pipeline built using the **Lambda Architecture** to process real-time and batch chess data from the [Lichess API](https://lichess.org/api). This project demonstrates modern data engineering practices including streaming ingestion, data lake storage, batch processing orchestration, and dimensional modeling with table partitioning.
 
-Your Astro project contains the following files and folders:
+---
 
-- dags: This folder contains the Python files for your Airflow DAGs. By default, this directory includes one example DAG:
-    - `example_astronauts`: This DAG shows a simple ETL pipeline example that queries the list of astronauts currently in space from the Open Notify API and prints a statement for each astronaut. The DAG uses the TaskFlow API to define tasks in Python, and dynamic task mapping to dynamically print a statement for each astronaut. For more on how this DAG works, see our [Getting started tutorial](https://www.astronomer.io/docs/learn/get-started-with-airflow).
-- Dockerfile: This file contains a versioned Astro Runtime Docker image that provides a differentiated Airflow experience. If you want to execute other commands or overrides at runtime, specify them here.
-- include: This folder contains any additional files that you want to include as part of your project. It is empty by default.
-- packages.txt: Install OS-level packages needed for your project by adding them to this file. It is empty by default.
-- requirements.txt: Install Python packages needed for your project by adding them to this file. It is empty by default.
-- plugins: Add custom or community plugins for your project to this file. It is empty by default.
-- airflow_settings.yaml: Use this local-only file to specify Airflow Connections, Variables, and Pools instead of entering them in the Airflow UI as you develop DAGs in this project.
+## 🏗️ Architecture Blueprint
 
-Deploy Your Project Locally
-===========================
+This project implements a **Lambda Architecture** that separates the data flow into a **Hot Path** (real-time streaming) and a **Cold Path** (batch processing).
 
-Start Airflow on your local machine by running 'astro dev start'.
+<div align="center">
+  <img src="blueprint/overall_architecture.png" alt="LilChess Lambda Architecture Blueprint" width="100%">
+</div>
 
-This command will spin up five Docker containers on your machine, each for a different Airflow component:
+*(Lưu ý: Để ảnh hiển thị ở trên, bạn hãy mở file `blueprint/overall_architecture.html` bằng trình duyệt web, chụp ảnh màn hình giao diện kiến trúc đó và lưu lại với tên `overall_architecture.png` vào trong thư mục `blueprint/` nhé!)*
 
-- Postgres: Airflow's Metadata Database
-- Scheduler: The Airflow component responsible for monitoring and triggering tasks
-- DAG Processor: The Airflow component responsible for parsing DAGs
-- API Server: The Airflow component responsible for serving the Airflow UI and API
-- Triggerer: The Airflow component responsible for triggering deferred tasks
+## 🚀 Key Features
 
-When all five containers are ready the command will open the browser to the Airflow UI at http://localhost:8080/. You should also be able to access your Postgres Database at 'localhost:5432/postgres' with username 'postgres' and password 'postgres'.
+* **Real-time Stream Processing (Hot Path):** Uses **Spark Streaming** to directly consume the `move` topic from **Kafka**. It embeds a Stockfish engine via a Pandas UDF to calculate centipawn loss (`cp_loss`) and detect blunders in real-time, then writes directly to PostgreSQL.
+* **Batch Processing (Cold Path):** Less time-sensitive data (`user`, `game`, `elo`) is dumped into **AWS S3** as a Data Lake. **Apache Airflow** schedules hourly batch jobs using **PySpark** to extract, transform, and load (ETL) the data into the Data Warehouse.
+* **Data Warehouse (Gold Layer):** Modeled using Dimensional Modeling (Fact & Dimension tables).
+* **Table Partitioning:** Implements PostgreSQL `PARTITION BY RANGE` to ensure query performance remains extremely fast as the dataset grows over time.
+* **Fault Tolerance:** Because raw data is preserved in AWS S3 (Bronze Layer), the entire PostgreSQL database can be safely rebuilt from scratch if needed without losing historical context.
 
-Note: If you already have either of the above ports allocated, you can either [stop your existing Docker containers or change the port](https://www.astronomer.io/docs/astro/cli/troubleshoot-locally#ports-are-not-available-for-my-local-airflow-webserver).
+## 🛠️ Technology Stack
 
-Deploy Your Project to Astronomer
-=================================
+* **Ingestion:** Python (ThreadPoolExecutor, Requests)
+* **Message Broker:** Apache Kafka (Confluent)
+* **Storage / Data Lake:** AWS S3 (boto3)
+* **Data Processing:** Apache Spark (PySpark), Spark Streaming, Pandas UDF
+* **Chess Engine:** Stockfish
+* **Orchestration:** Apache Airflow
+* **Database:** PostgreSQL (psycopg2)
+* **Infrastructure:** Docker, Docker Compose
 
-If you have an Astronomer account, pushing code to a Deployment on Astronomer is simple. For deploying instructions, refer to Astronomer documentation: https://www.astronomer.io/docs/astro/deploy-code/
+## 🗄️ Database Schema (Gold Layer)
 
-Contact
-=======
+The data is loaded into the `gold` schema in PostgreSQL, categorized into Facts and Dimensions:
 
-The Astronomer CLI is maintained with love by the Astronomer team. To report a bug or suggest a change, reach out to our support.
+- **Fact Tables:**
+  - `fact_game`: Metadata about matches (winner, turns, format). Partitioned by Month.
+  - `fact_user`: Time-series data of player stats (wins, losses, play time). Partitioned by Month.
+  - `fact_elo`: Rating progression over time. Partitioned by Month.
+  - `game_evaluations`: Move-by-move real-time Stockfish evaluations (`cp_loss`, `remark`). Partitioned by Day.
+- **Dimension Tables:**
+  - `dim_user`: Master profile of Lichess players.
+
+## ⚙️ How to Run Locally
+
+1. **Clone the repository:**
+   ```bash
+   git clone <your-repo-url>
+   cd lilchess-pipeline
+   ```
+2. **Environment Variables:**
+   Create a `.env` file in the root directory with your credentials:
+   ```env
+   # AWS
+   AWS_ACCESS_KEY=your_access_key
+   AWS_SECRET_KEY=your_secret_key
+   region=ap-southeast-1
+   bucket_name=your_bucket
+   
+   # Database
+   DB_HOST=localhost
+   DB_PORT=5432
+   DB_NAME=airflow
+   DB_USER=airflow
+   DB_PASSWORD=airflow
+   
+   # Kafka
+   KAFKA_BOOTSTRAP_SERVER=your_kafka_broker
+   API_KEY=your_kafka_api_key
+   API_SECRET=your_kafka_secret
+   
+   # Stockfish
+   STOCKFISH_PATH=/path/to/stockfish
+   ```
+3. **Start Infrastructure (Airflow, Postgres):**
+   ```bash
+   docker-compose up -d
+   ```
+4. **Run the Ingestion Producer:**
+   ```bash
+   python include/script/raw_data/realtime_move.py
+   ```
+5. **Run the Spark Streaming Consumer (Hot Path):**
+   ```bash
+   python include/script/spark/consumer_moves.py
+   ```
+
+*(Note: The Airflow scheduler will automatically trigger the Batch jobs for the Cold Path based on the cron schedule `10 * * * *`).*

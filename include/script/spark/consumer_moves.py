@@ -8,7 +8,9 @@ import chess.engine
 import pandas as pd 
 from dotenv import load_dotenv
 
-from spark import get_spark_session
+# from spark import get_spark_session
+from include.script.spark.spark import get_spark_session
+
 
 spark = get_spark_session()
 

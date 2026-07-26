@@ -35,10 +35,71 @@ def get_user(username):
     except Exception as e:
         print(e)
         return False
+
+
+def get_users_bulk(usernames):
+    """
+    Lấy thông tin nhiều user cùng lúc bằng Lichess Bulk API.
+    usernames: list chứa các username (VD: ['nguoi_choi_1', 'nguoi_choi_2'])
+    """
+    url = 'https://lichess.org/api/users'
+    # Lichess yêu cầu body là chuỗi text các user cách nhau bằng dấu phẩy
+    data = ",".join(usernames)
+    headers = {'Content-Type': 'text/plain'}
     
-# pd.set_option('display.max_columns', 100)
+    # Khởi tạo dict chứa các list rỗng
+    data_users = {
+        'id': [], 'username': [], 'title': [], 'created_at': [], 
+        'location': [], 'real_name': [], 'fide_rating': [], 
+        'links': [], 'bio': [], 'play_time': [], 'url': [], 
+        'all_count': [], 'rated_count': [], 'draw_count': [], 
+        'loss_count': [], 'win_count': []
+    }
+    data_elos = {} 
 
-# data_user , data_elo = get_user(username='konstantinkazakov')
+    try:
+        response = requests.post(url=url, data=data, headers=headers)
+        print(f'Get users bulk {usernames} status {response.status_code}')
+        
+        if response.status_code == 200:
+            json_data_list = response.json() 
+            for json_data in json_data_list:
+                profile = json_data.get('profile', {})
+                count = json_data.get('count', {})
+                play_time = json_data.get('playTime', {})
+                
+                # Append dữ liệu của từng user vào list tương ứng
+                data_users['id'].append(json_data.get('id'))
+                data_users['username'].append(json_data.get('username'))
+                data_users['title'].append(json_data.get('title'))
+                data_users['created_at'].append(json_data.get('createdAt'))
+                data_users['location'].append(profile.get('location', ''))
+                data_users['real_name'].append(profile.get('realName', ''))
+                data_users['fide_rating'].append(profile.get('fideRating', ''))
+                data_users['links'].append(profile.get('links', ''))
+                data_users['bio'].append(profile.get('bio', ''))
+                data_users['play_time'].append(play_time.get('total'))
+                data_users['url'].append(json_data.get('url'))
+                data_users['all_count'].append(count.get('all'))
+                data_users['rated_count'].append(count.get('rated'))
+                data_users['draw_count'].append(count.get('draw'))
+                data_users['loss_count'].append(count.get('loss'))
+                data_users['win_count'].append(count.get('win'))
 
-# print(pd.DataFrame(data_elo))
-# print(pd.DataFrame(data_user))
+                # Xử lý Elo cho user hiện tại
+                user_elo = get_elo_for_one_user(username=json_data.get('username'), prefs=json_data.get('perfs'))
+                # if not data_elos and user_elo:
+                #     data_elos = {k: [] for k in user_elo.keys()}
+                
+                # if user_elo:
+                #     for k in user_elo.keys():
+                #         data_elos[k].extend(user_elo[k])
+                # print(data_users)
+                # print(user_elo)
+            return data_users, user_elo
+            
+    except Exception as e:
+        print(f"Lỗi khi gọi Bulk API: {e}")
+        return {}, {}
+        
+    return {}, {}

@@ -1,4 +1,5 @@
-from spark import get_spark_session
+# from spark import get_spark_session
+from include.script.spark.spark import get_spark_session
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, from_json , when, current_timestamp , expr, pandas_udf
 from pyspark.sql.types import StructType, StructField, StringType, IntegerType, BooleanType, LongType
@@ -6,58 +7,76 @@ from dotenv import load_dotenv
 import os 
 import argparse
 
-spark = get_spark_session('batch')
+import traceback
+# spark = get_spark_session('batch')
 
 
 
-script_dir = os.path.dirname(os.path.abspath(__file__))
-env_path_file = os.path.join('/'.join(script_dir.split('/')[:-3]), '.env')
-load_dotenv(env_path_file)
+# script_dir = os.path.dirname(os.path.abspath(__file__))
+# env_path_file = os.path.join('/'.join(script_dir.split('/')[:-3]), '.env')
+# load_dotenv(env_path_file)
 
 
 
-bucket_name = os.getenv('bucket_name')
+# bucket_name = os.getenv('bucket_name')
 
-DB_HOST = os.getenv("DB_HOST")
-DB_PORT = os.getenv('DB_PORT')
-DB_NAME = os.getenv("DB_NAME")
-DB_USER = os.getenv("DB_USER")
-DB_PASSWORD = os.getenv("DB_PASSWORD")
-
-
-
-game_schema = StructType([
-    StructField("game_id", StringType(), True),
-    StructField("winner", StringType(), True),
-    StructField("winner_id", StringType(), True),
-    StructField("status_name", StringType(), True),
-    StructField("status_id", IntegerType(), True),
-    StructField("turns", IntegerType(), True),
-    StructField("white_id", StringType(), True),
-    StructField("black_id", StringType(), True),
-    StructField("rated", BooleanType(), True),
-    StructField("speed", StringType(), True),
-    StructField("perf", StringType(), True),
-    StructField("createdAt", LongType(), True),
-
-])
+# DB_HOST = os.getenv("DB_HOST")
+# DB_PORT = os.getenv('DB_PORT')
+# DB_NAME = os.getenv("DB_NAME")
+# DB_USER = os.getenv("DB_USER")
+# DB_PASSWORD = os.getenv("DB_PASSWORD")
 
 
 
-parser = argparse.ArgumentParser(description="Process game data for a specific hour.")
-parser.add_argument("--year", required=True, help="Year (e.g. 2026)")
-parser.add_argument("--month", required=True, help="Month (e.g. 07)")
-parser.add_argument("--day", required=True, help="Day (e.g. 21)")
-parser.add_argument("--hour", required=True, help="Hour (e.g. 06)")
-args = parser.parse_args()
+# game_schema = StructType([
+#     StructField("game_id", StringType(), True),
+#     StructField("winner", StringType(), True),
+#     StructField("winner_id", StringType(), True),
+#     StructField("status_name", StringType(), True),
+#     StructField("status_id", IntegerType(), True),
+#     StructField("turns", IntegerType(), True),
+#     StructField("white_id", StringType(), True),
+#     StructField("black_id", StringType(), True),
+#     StructField("rated", BooleanType(), True),
+#     StructField("speed", StringType(), True),
+#     StructField("perf", StringType(), True),
+#     StructField("createdAt", LongType(), True),
 
-s3_path_dir = f'topics/game/year={args.year}/month={args.month}/day={args.day}/hour={args.hour}/'
-s3_path = f's3a://{bucket_name}/{s3_path_dir}'
-print(f"Đang đọc tất cả dữ liệu từ thư mục: {s3_path}")
+# ])
 
 
-def transform_game_schema(spark, s3_path, game_schema, DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD):
+
+# parser = argparse.ArgumentParser(description="Process game data for a specific hour.")
+# parser.add_argument("--year", required=True, help="Year (e.g. 2026)")
+# parser.add_argument("--month", required=True, help="Month (e.g. 07)")
+# parser.add_argument("--day", required=True, help="Day (e.g. 21)")
+# parser.add_argument("--hour", required=True, help="Hour (e.g. 06)")
+# args = parser.parse_args()
+
+# s3_path_dir = f'topics/game/year={args.year}/month={args.month}/day={args.day}/hour={args.hour}/'
+# s3_path = f's3a://{bucket_name}/{s3_path_dir}'
+# print(f"Đang đọc tất cả dữ liệu từ thư mục: {s3_path}")
+
+
+def transform_game_schema( s3_path, DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD):
+
+    game_schema = StructType([
+        StructField("game_id", StringType(), True),
+        StructField("winner", StringType(), True),
+        StructField("winner_id", StringType(), True),
+        StructField("status_name", StringType(), True),
+        StructField("status_id", IntegerType(), True),
+        StructField("turns", IntegerType(), True),
+        StructField("white_id", StringType(), True),
+        StructField("black_id", StringType(), True),
+        StructField("rated", BooleanType(), True),
+        StructField("speed", StringType(), True),
+        StructField("perf", StringType(), True),
+        StructField("createdAt", LongType(), True),
+
+    ])
     try:
+        spark = get_spark_session('batch')
         df_parsed = spark.read.format('json').schema(game_schema).load(s3_path)
         jdbc_url = f"jdbc:postgresql://{DB_HOST}:{DB_PORT}/{DB_NAME}"
 
@@ -98,7 +117,9 @@ def transform_game_schema(spark, s3_path, game_schema, DB_HOST, DB_PORT, DB_NAME
             .save()
             
         print("Đã lưu dữ liệu vào database thành công")
+        return True
     except Exception as e:
+        traceback.print_exc()
         print(f"Lỗi khi xử lý dữ liệu và ghi vào database: {e}")
 
-transform_game_schema(spark,s3_path, game_schema, DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD)
+# transform_game_schema(spark,s3_path, game_schema, DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD)
